@@ -21,10 +21,9 @@ class BLEPeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
     var manager: CBPeripheralManager!
     var startPromiseResolve: RCTPromiseResolveBlock?
     var startPromiseReject: RCTPromiseRejectBlock?
-
-    let lockQueue = DispatchQueue(label: "com.send.LockQueue")
     var sendingDataInfos = [SendingDataInfo]()
     var notifyInfos = Dictionary<String, NotifyInfo>()
+    let lockQueue = DispatchQueue(label: "com.send.LockQueue")
 
     override init() {
         super.init()
@@ -46,14 +45,13 @@ class BLEPeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
     
     @objc(addService:primary:)
     func addService(_ uuid: String, primary: Bool) {
-
+        servicesMap.removeAll()
         let serviceUUID = CBUUID(string: uuid)
         let service = CBMutableService(type: serviceUUID, primary: primary)
-        if(servicesMap.keys.contains(uuid) != true){
+        if (servicesMap.keys.contains(uuid) != true) {
             servicesMap[uuid] = service
             print("added service \(uuid)")
-        }
-        else {
+        } else {
             alertJS("service \(uuid) already there")
         }
     }
@@ -64,8 +62,8 @@ class BLEPeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
         let propertyValue = CBCharacteristicProperties(rawValue: properties)
         let permissionValue = CBAttributePermissions(rawValue: permissions)
         let characteristic = CBMutableCharacteristic( type: characteristicUUID, properties: propertyValue, value: nil, permissions: permissionValue)
-        if (servicesMap[serviceUUID]?.characteristics == nil){
-            servicesMap[serviceUUID]?.characteristics=[];
+        if (servicesMap[serviceUUID]?.characteristics == nil) {
+            servicesMap[serviceUUID]?.characteristics = []
         }
         servicesMap[serviceUUID]?.characteristics?.append(characteristic)
         print("added characteristic to service")
@@ -79,10 +77,9 @@ class BLEPeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
     @objc func start(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         let timeOutSecond=6.0;
         let beginTime = CACurrentMediaTime()
-        while(manager.state != CBManagerState.poweredOn){
+        while (manager.state != CBManagerState.poweredOn) {
             let endTime = CACurrentMediaTime()
-            if (endTime-beginTime > timeOutSecond)
-            {
+            if (endTime - beginTime > timeOutSecond) {
                 break;
             }
         }
@@ -94,27 +91,28 @@ class BLEPeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
         startPromiseResolve = resolve
         startPromiseReject = reject
 
+        manager.removeAllServices()
         for service in servicesMap.values {
             manager.add(service)
         }
-        
-        
+
         let advertisementData = [
             CBAdvertisementDataLocalNameKey: name,
             CBAdvertisementDataServiceUUIDsKey: getServiceUUIDArray()
-            ] as [String : Any]
+        ] as [String : Any]
         manager.startAdvertising(advertisementData)
     }
-    
+
     @objc func stop() {
         manager.stopAdvertising()
+        manager.removeAllServices()
         advertising = false
         print("called stop")
     }
 
     @objc(sendNotificationToDevices:characteristicUUID:messageBytes:deviceIDs:)
     func sendNotificationToDevices(_ serviceUUID: String, characteristicUUID: String, messageBytes: [UInt8],deviceIDs :[String]) {
-        if(servicesMap.keys.contains(serviceUUID) == true){
+        if (servicesMap.keys.contains(serviceUUID) == true) {
             let service = servicesMap[serviceUUID]!
             let characteristic = getCharacteristicForService(service, characteristicUUID)
             if (characteristic == nil) {
@@ -126,23 +124,21 @@ class BLEPeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
             let data = Data(bytes: messageBytes, count: messageBytes.count)
             char.value = data
             var centrals = Array<CBCentral>();
-            if(deviceIDs.count > 0){
+            if (deviceIDs.count > 0) {
                 for deviceID in deviceIDs {
                     let tmpCentral = notifyInfos[deviceID];
-                    if tmpCentral != nil{
+                    if tmpCentral != nil {
                         centrals.append(tmpCentral!.central);
                     }
                 }
             }
 
-            
             lockQueue.sync() {
                 let temp = SendingDataInfo(characterist: char, data: data, centrals:centrals.count > 0 ? centrals : nil)
                 sendingDataInfos.append(temp)
             }
             
             processCharacteristicsUpdateQueue()
-
         } else {
             alertJS("service \(serviceUUID) does not exist")
         }
@@ -167,14 +163,13 @@ class BLEPeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
         }
     }
 
-        
     //// EVENTS
 
     // Respond to Read request
-    func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveRead request: CBATTRequest) 
+    func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveRead request: CBATTRequest)
     {
         let characteristic = getCharacteristic(request.characteristic.uuid)
-        if (characteristic != nil){
+        if (characteristic != nil) {
             print("didReceiveReadRequest")
             request.value = characteristic?.value
             manager.respond(to: request, withResult: .success)
@@ -182,34 +177,28 @@ class BLEPeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
             alertJS("cannot read, characteristic not found")
         }
     }
-    
 
     // Respond to Write request
     func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest])
     {
-        
         var err = "";
-        
-        if(requests.count<1)
-        {
-            err="No Receive."
-            sendEvent(withName: "didReceiveWrite", body: [err,{}])
 
+        if (requests.count < 1) {
+            err = "No Receive."
+            sendEvent(withName: "didReceiveWrite", body: [err,{}])
             return ;
         }
 
-        for request in requests
-        {
+        for request in requests {
             var characteristicMap = Dictionary<String,Any>();
             characteristicMap["uuid"] = request.characteristic.uuid.uuidString;
-            
-            var dataArray=[UInt8]();
-            var dataStr="";
-            if(request.value==nil||request.value!.count<1){
-                err="No characteristic."
-            }
-            else{
-                err=""
+
+            var dataArray = [UInt8]();
+            var dataStr = "";
+            if (request.value == nil || request.value!.count < 1) {
+                err = "No characteristic."
+            } else {
+                err = ""
                 dataArray = [UInt8](request.value!);
                 dataStr = String(data: request.value!, encoding: .utf8) ?? ""
             }
@@ -223,9 +212,10 @@ class BLEPeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
             sendEvent(withName: "didReceiveWriteString", body: [err,characteristicMap])
 
             let characteristic = getCharacteristic(request.characteristic.uuid)
-            if (characteristic == nil) { alertJS("characteristic for writing not found") }
-            if request.characteristic.uuid.isEqual(characteristic?.uuid)
-            {
+            if (characteristic == nil) {
+                alertJS("characteristic for writing not found")
+            }
+            if request.characteristic.uuid.isEqual(characteristic?.uuid) {
                 print("didReceiveReadRequest")
                 let char = characteristic as! CBMutableCharacteristic
                 char.value = request.value
@@ -235,7 +225,6 @@ class BLEPeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
             
             manager.respond(to: request, withResult: .success)
         }
-        
     }
 
     func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager) {
@@ -246,18 +235,17 @@ class BLEPeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
     // Respond to Subscription to Notification events
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
         let char = characteristic as! CBMutableCharacteristic
-        let notifyInfo=NotifyInfo(characterist: characteristic, central: central)
-        notifyInfos[central.identifier.uuidString.uppercased()]=notifyInfo;
+        let notifyInfo = NotifyInfo(characterist: characteristic, central: central)
+        notifyInfos[central.identifier.uuidString.uppercased()] = notifyInfo;
         print("subscribed characteristic: \(String(describing: char)) maxUpdate:\(central.maximumUpdateValueLength)")
         sendEvent(withName: "subscribedCentral", body:central.identifier.uuidString)
-
     }
 
     // Respond to Unsubscribe events
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
         let char = characteristic as! CBMutableCharacteristic
-        let tmpIndex=notifyInfos.index(forKey: central.identifier.uuidString.uppercased());
-        if tmpIndex != nil{
+        let tmpIndex = notifyInfos.index(forKey: central.identifier.uuidString.uppercased());
+        if (tmpIndex != nil) {
             notifyInfos.remove(at: tmpIndex!)
         }
         sendEvent(withName: "unsubscribedCentral", body:central.identifier.uuidString)
@@ -303,7 +291,7 @@ class BLEPeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
     func getCharacteristic(_ characteristicUUID: CBUUID) -> CBCharacteristic? {
         for (uuid, service) in servicesMap {
             for characteristic in service.characteristics ?? [] {
-                if (characteristic.uuid.isEqual(characteristicUUID) ) {
+                if (characteristic.uuid.isEqual(characteristicUUID)) {
                     print("service \(uuid) does have characteristic \(characteristicUUID)")
                     if (characteristic is CBMutableCharacteristic) {
                         return characteristic
@@ -319,7 +307,7 @@ class BLEPeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
 
     func getCharacteristicForService(_ service: CBMutableService, _ characteristicUUID: String) -> CBCharacteristic? {
         for characteristic in service.characteristics ?? [] {
-            if (characteristic.uuid.uuidString.uppercased() == characteristicUUID.uppercased() ) {
+            if (characteristic.uuid.uuidString.uppercased() == characteristicUUID.uppercased()) {
                 print("service \(service.uuid.uuidString) does have characteristic \(characteristicUUID)")
                 if (characteristic is CBMutableCharacteristic) {
                     return characteristic
@@ -342,7 +330,7 @@ class BLEPeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
 
     func alertJS(_ message: Any) {
         print(message)
-        if(hasListeners) {
+        if (hasListeners) {
             sendEvent(withName: "onWarning", body: message)
         }
     }

@@ -12,16 +12,16 @@ import com.himelbrand.ble.peripheral.RNBLEModule;
 
 public class RNBLEPackage implements ReactPackage {
 
-  @Override
-  public List<NativeModule> createNativeModules(
-  ReactApplicationContext reactContext) {
-    List<NativeModule> modules = new ArrayList<NativeModule>();
-    modules.add(new RNBLEModule(reactContext));
-    return modules;
-  }
+    @Override
+    public List<NativeModule> createNativeModules(
+    ReactApplicationContext reactContext) {
+        List<NativeModule> modules = new ArrayList<NativeModule>();
+        modules.add(new RNBLEModule(reactContext));
+        return modules;
+    }
 
-  @Override
-  public List<ViewManager> createViewManagers(ReactApplicationContext reactContext) {
-    return Collections.emptyList();
-  }
+    @Override
+    public List<ViewManager> createViewManagers(ReactApplicationContext reactContext) {
+        return Collections.emptyList();
+    }
 }
