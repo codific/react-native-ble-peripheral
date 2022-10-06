@@ -24,25 +24,26 @@ class BLEPeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
     var sendingDataInfos = [SendingDataInfo]()
     var notifyInfos = Dictionary<String, NotifyInfo>()
     let lockQueue = DispatchQueue(label: "com.send.LockQueue")
+    var advertisedData = Dictionary<String, Any>()
 
     override init() {
         super.init()
         manager = CBPeripheralManager(delegate: self, queue: nil, options: nil)
         print("BLEPeripheral initialized, advertising: \(advertising)")
     }
-    
+
     //// PUBLIC METHODS
 
     @objc func setName(_ name: String) {
         self.name = name
         print("name set to \(name)")
     }
-    
+
     @objc func isAdvertising(_ resolve: RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock) {
         resolve(advertising)
         print("called isAdvertising")
     }
-    
+
     @objc(addService:primary:)
     func addService(_ uuid: String, primary: Bool) {
         servicesMap.removeAll()
@@ -55,7 +56,7 @@ class BLEPeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
             alertJS("service \(uuid) already there")
         }
     }
-    
+
     @objc(addCharacteristicToService:uuid:permissions:properties:)
     func addCharacteristicToService(_ serviceUUID: String, uuid: String, permissions: UInt, properties: UInt) {
         let characteristicUUID = CBUUID(string: uuid)
@@ -68,12 +69,12 @@ class BLEPeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
         servicesMap[serviceUUID]?.characteristics?.append(characteristic)
         print("added characteristic to service")
     }
-    
+
     @objc(addDescriptorToCharacteristic:charactUUID:uuid:permissions:)
     func addDescriptorToCharacteristic(_ serviceUUID: String, charactUUID:String, uuid: String, permissions: UInt) {
         alertJS("iOS not need")
     }
-    
+
     @objc func start(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         let timeOutSecond=6.0;
         let beginTime = CACurrentMediaTime()
@@ -87,7 +88,7 @@ class BLEPeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
             alertJS("Bluetooth turned off")
             return;
         }
-        
+
         startPromiseResolve = resolve
         startPromiseReject = reject
 
@@ -100,6 +101,7 @@ class BLEPeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
             CBAdvertisementDataLocalNameKey: name,
             CBAdvertisementDataServiceUUIDsKey: getServiceUUIDArray()
         ] as [String : Any]
+        advertisedData = advertisementData
         manager.startAdvertising(advertisementData)
     }
 
@@ -137,13 +139,13 @@ class BLEPeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
                 let temp = SendingDataInfo(characterist: char, data: data, centrals:centrals.count > 0 ? centrals : nil)
                 sendingDataInfos.append(temp)
             }
-            
+
             processCharacteristicsUpdateQueue()
         } else {
             alertJS("service \(serviceUUID) does not exist")
         }
     }
-    
+
     func updateCharacteristic(_ characteristicData: SendingDataInfo) -> Bool {
         return manager.updateValue(characteristicData.data, for: characteristicData.characterist, onSubscribedCentrals: characteristicData.centrals)
     }
@@ -222,7 +224,7 @@ class BLEPeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
             } else {
                 alertJS("characteristic you are trying to access doesn't match")
             }
-            
+
             manager.respond(to: request, withResult: .success)
         }
     }
@@ -231,7 +233,7 @@ class BLEPeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
         print("peripheralManagerIsReady");
         processCharacteristicsUpdateQueue()
     }
-    
+
     // Respond to Subscription to Notification events
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
         let char = characteristic as! CBMutableCharacteristic
@@ -278,11 +280,11 @@ class BLEPeripheral: RCTEventEmitter, CBPeripheralManagerDelegate {
         if let error = error {
             alertJS("advertising failed. error: \(error)")
             advertising = false
-            startPromiseReject!("AD_ERR", "advertising failed", error)
+            startPromiseReject!("AD_ERR", "Advertising onStartFailure: ", error)
             return
         }
         advertising = true
-        startPromiseResolve!(advertising)
+        startPromiseResolve!("Success, Started Advertising: " + advertisedData.description)
         print("advertising succeeded!")
     }
     

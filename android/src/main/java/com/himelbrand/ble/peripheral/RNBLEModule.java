@@ -18,6 +18,7 @@ import android.os.ParcelUuid;
 import android.util.Log;
 
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.UUID;
@@ -181,11 +182,7 @@ public class RNBLEModule extends ReactContextBaseJavaModule {
             sendEventToJs("didReceiveWrite", arguments1);
 
             String tmpStr = "";
-            try {
-                tmpStr = new String(value, "UTF-8");
-            } catch (UnsupportedEncodingException e) {
-                err = e.getMessage();
-            }
+            tmpStr = new String(value, StandardCharsets.UTF_8);
             map2.putString("value", tmpStr);
             WritableArray arguments2 = Arguments.createArray();
             arguments2.pushString(err);
@@ -197,7 +194,7 @@ public class RNBLEModule extends ReactContextBaseJavaModule {
         @Override
         public void onDescriptorWriteRequest(BluetoothDevice device, int requestId, BluetoothGattDescriptor descriptor, boolean preparedWrite, boolean responseNeeded, int offset, byte[] value) {
             // super.onDescriptorWriteRequest(device, requestId, descriptor, preparedWrite,responseNeeded, offset, value);
-            // now tell the connected device that this was all successfull
+            // now tell the connected device that this was all successful
             if (responseNeeded) {
                 mGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value);
             }
@@ -237,7 +234,6 @@ public class RNBLEModule extends ReactContextBaseJavaModule {
                 .setConnectable(true)
                 .build();
 
-
         AdvertiseData.Builder dataBuilder = new AdvertiseData.Builder()
                 .setIncludeDeviceName(true);
         for (BluetoothGattService service : this.servicesMap.values()) {
@@ -251,15 +247,14 @@ public class RNBLEModule extends ReactContextBaseJavaModule {
             public void onStartSuccess(AdvertiseSettings settingsInEffect) {
                 super.onStartSuccess(settingsInEffect);
                 advertising = true;
-                promise.resolve("Success, Started Advertising");
-
+                promise.resolve("Success, Started Advertising: " + settings + " " + data);
             }
 
             @Override
             public void onStartFailure(int errorCode) {
                 advertising = false;
                 Log.e("RNBLEModule", "Advertising onStartFailure: " + errorCode);
-                promise.reject(Integer.toString(errorCode), "Advertising onStartFailure");
+                promise.reject(Integer.toString(errorCode), "Advertising onStartFailure: " + errorCode);
                 super.onStartFailure(errorCode);
             }
         };

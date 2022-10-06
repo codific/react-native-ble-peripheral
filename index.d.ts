@@ -18,7 +18,7 @@ declare module "react-native-ble-peripheral" {
     messageBytes: number[],
     deviceIDs:string[]
   ): void;
-  function start(): Promise<boolean>;
+  function start(): Promise<string>;
   function stop(): void;
   function setName(name: string): void;
   function isAdvertising(): Promise<boolean>;
